@@ -1,0 +1,79 @@
+import json
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QLineEdit, QPushButton, QMessageBox
+
+
+class RelatorioApp(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Gerador de Relatório")
+        self.setGeometry(100, 100, 400, 300)
+
+        self.label_nome = QLabel("Nome do Aluno:", self)
+        self.label_nome.move(20, 20)
+        self.nome_aluno = QLineEdit(self)
+        self.nome_aluno.setGeometry(150, 20, 200, 25)
+
+        self.labels_perguntas = {}
+        self.inputs_respostas = {}
+        self.y_pos = 60
+        self.num_perguntas = 3
+
+        self.btn_gerar = QPushButton("Gerar Relatório", self)
+        self.btn_gerar.setGeometry(150, 220, 100, 30)
+        self.btn_gerar.clicked.connect(self.gerar_relatorio)
+
+    def gerar_relatorio(self):
+        nome_aluno = self.nome_aluno.text()
+
+        respostas = {}
+        for i in range(self.num_perguntas):
+            chave = f"resposta_{i+1}"
+            resposta = self.inputs_respostas[chave].text()
+            respostas[chave] = resposta
+
+        niveis_habilidades = {
+            "experiencia": "Iniciante",
+            "conhecimento": "Intermediário",
+            "habilidades": "Avançado"
+        }
+
+        relatorio = {
+            "Nome do Aluno": nome_aluno,
+            "Respostas": respostas,
+            "Níveis de Habilidades": niveis_habilidades
+        }
+
+        with open("relatorio.json", "w") as arquivo:
+            json.dump(relatorio, arquivo)
+
+        QMessageBox.information(self, "Relatório Gerado", "O relatório foi gerado com sucesso!")
+
+        habilidades = list(niveis_habilidades.keys())
+        niveis = list(niveis_habilidades.values())
+
+        plt.bar(habilidades, niveis)
+        plt.title("Níveis de Habilidades")
+        plt.xlabel("Habilidades")
+        plt.ylabel("Nível")
+        plt.show()
+
+        nome_arquivo_pdf = nome_aluno + "_relatorio.pdf"
+        with PdfPages(nome_arquivo_pdf) as pdf:
+            plt.bar(habilidades, niveis)
+            plt.title("Níveis de Habilidades")
+            plt.xlabel("Habilidades")
+            plt.ylabel("Nível")
+            pdf.savefig()
+            plt.close()
+
+        QMessageBox.information(self, "Gráfico Salvo", f"O gráfico foi salvo em {nome_arquivo_pdf}")
+
+
+if __name__ == "__main__":
+    import sys
+    app = QApplication(sys.argv)
+    window = RelatorioApp()
+    window.show()
+    sys.exit(app.exec_())
