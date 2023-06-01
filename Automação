@@ -1,48 +1,98 @@
 import json
+import random
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QLineEdit, QPushButton, QMessageBox
-
+from docx import Document
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QLineEdit, QSpinBox, QTextEdit, QPushButton, QMessageBox, QVBoxLayout, QWidget
+import requests
+from bs4 import BeautifulSoup
+import openai
 
 class RelatorioApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Gerador de Relatório")
-        self.setGeometry(100, 100, 400, 300)
+        self.setGeometry(100, 100, 400, 400)
 
-        self.label_nome = QLabel("Nome do Aluno:", self)
-        self.label_nome.move(20, 20)
-        self.nome_aluno = QLineEdit(self)
-        self.nome_aluno.setGeometry(150, 20, 200, 25)
+        self.linhas_habilidades = []
+        self.spinboxes_notas = []
+        self.caixas_comentarios = []
+        self.num_habilidades = 3
 
-        self.labels_perguntas = {}
-        self.inputs_respostas = {}
-        self.y_pos = 60
-        self.num_perguntas = 3
+        self.central_widget = QWidget(self)
+        self.setCentralWidget(self.central_widget)
+        self.layout = QVBoxLayout(self.central_widget)
 
-        self.btn_gerar = QPushButton("Gerar Relatório", self)
-        self.btn_gerar.setGeometry(150, 220, 100, 30)
-        self.btn_gerar.clicked.connect(self.gerar_relatorio)
+        self.btn_adicionar = QPushButton("Adicionar Habilidade", self)
+        self.btn_adicionar.clicked.connect(self.adicionar_habilidade)
+        self.layout.addWidget(self.btn_adicionar)
 
-    def gerar_relatorio(self):
-        nome_aluno = self.nome_aluno.text()
+        self.btn_remover = QPushButton("Remover Habilidade", self)
+        self.btn_remover.clicked.connect(self.remover_habilidade)
+        self.layout.addWidget(self.btn_remover)
 
-        respostas = {}
-        for i in range(self.num_perguntas):
-            chave = f"resposta_{i+1}"
-            resposta = self.inputs_respostas[chave].text()
-            respostas[chave] = resposta
+        self.btn_gerar_relatorio = QPushButton("Gerar Relatório", self)
+        self.btn_gerar_relatorio.clicked.connect(self.gerar_relatorio)
+        self.layout.addWidget(self.btn_gerar_relatorio)
 
-        niveis_habilidades = {
-            "experiencia": "Iniciante",
-            "conhecimento": "Intermediário",
-            "habilidades": "Avançado"
+        self.btn_texto_formal = QPushButton("Texto Formal", self)
+        self.btn_texto_formal.clicked.connect(self.converter_para_formal)
+        self.layout.addWidget(self.btn_texto_formal)
+
+        self.btn_download_word = QPushButton("Baixar em Word", self)
+        self.btn_download_word.clicked.connect(self.baixar_word)
+        self.layout.addWidget(self.btn_download_word)
+
+        self.girias = {
+            "boy": "indivíduo",
+            "top": "excelente",
+            "show": "impressionante"
+            # Adicione outras substituições de gírias aqui
         }
 
+        self.api_key = "chave de API do OpenAI"  # Substitua pela sua chave de API do OpenAI
+
+    def adicionar_habilidade(self):
+        num_habilidades = len(self.linhas_habilidades) + 1
+
+        label_habilidade = QLabel(f"Habilidade {num_habilidades}:", self)
+        self.layout.addWidget(label_habilidade)
+
+        linha_nome_habilidade = QLineEdit(self)
+        self.layout.addWidget(linha_nome_habilidade)
+        self.linhas_habilidades.append(linha_nome_habilidade)
+
+        spinbox_nota = QSpinBox(self)
+        spinbox_nota.setRange(0, 10)
+        self.layout.addWidget(spinbox_nota)
+        self.spinboxes_notas.append(spinbox_nota)
+
+        caixa_comentarios = QTextEdit(self)
+        self.layout.addWidget(caixa_comentarios)
+        self.caixas_comentarios.append(caixa_comentarios)
+
+    def remover_habilidade(self):
+        if not self.linhas_habilidades:
+            return
+
+        self.layout.removeWidget(self.linhas_habilidades[-1])
+        self.linhas_habilidades[-1].deleteLater()
+        del self.linhas_habilidades[-1]
+
+        self.layout.removeWidget(self.spinboxes_notas[-1])
+        self.spinboxes_notas[-1].deleteLater()
+        del self.spinboxes_notas[-1]
+
+        self.layout.removeWidget(self.caixas_comentarios[-1])
+        self.caixas_comentarios[-1].deleteLater()
+        del self.caixas_comentarios[-1]
+
+    def gerar_relatorio(self):
+        habilidades = [linha.text() for linha in self.linhas_habilidades]
+        notas = [spinbox.value() for spinbox in self.spinboxes_notas]
+
         relatorio = {
-            "Nome do Aluno": nome_aluno,
-            "Respostas": respostas,
-            "Níveis de Habilidades": niveis_habilidades
+            "Habilidades": habilidades,
+            "Notas": notas
         }
 
         with open("relatorio.json", "w") as arquivo:
@@ -50,30 +100,97 @@ class RelatorioApp(QMainWindow):
 
         QMessageBox.information(self, "Relatório Gerado", "O relatório foi gerado com sucesso!")
 
-        habilidades = list(niveis_habilidades.keys())
-        niveis = list(niveis_habilidades.values())
+        fig, ax = plt.subplots(figsize=(12, 6))
+        ax.bar(range(len(habilidades)), notas)
+        ax.set_title("Notas das Habilidades")
+        ax.set_xlabel("Habilidades")
+        ax.set_ylabel("Nota")
+        ax.set_xticks(range(len(habilidades)))
+        ax.set_xticklabels(habilidades, rotation=45, ha='right')
+        plt.subplots_adjust(bottom=0.25)
 
-        plt.bar(habilidades, niveis)
-        plt.title("Níveis de Habilidades")
-        plt.xlabel("Habilidades")
-        plt.ylabel("Nível")
+        for i, valor in enumerate(notas):
+            ax.text(i, valor, str(valor), ha='center', va='bottom')
+
         plt.show()
 
-        nome_arquivo_pdf = nome_aluno + "_relatorio.pdf"
-        with PdfPages(nome_arquivo_pdf) as pdf:
-            plt.bar(habilidades, niveis)
-            plt.title("Níveis de Habilidades")
-            plt.xlabel("Habilidades")
-            plt.ylabel("Nível")
-            pdf.savefig()
-            plt.close()
+    def converter_para_formal(self):
+        comentarios = [caixa.toPlainText() for caixa in self.caixas_comentarios]
 
-        QMessageBox.information(self, "Gráfico Salvo", f"O gráfico foi salvo em {nome_arquivo_pdf}")
+        self.caixa_comentarios_formais = QTextEdit(self)
+        self.layout.addWidget(self.caixa_comentarios_formais)
 
+        self.comentarios_formais = []
+
+        openai.api_key = self.api_key
+
+        for comentario in comentarios:
+            # Geração de linguagem formal usando a API do ChatGPT
+            resposta_formal = openai.Completion.create(
+                engine="text-davinci-003",
+                prompt=comentario,
+                max_tokens=300,
+                n=1,
+                stop=None,
+                frequency_penalty=0.0,
+                presence_penalty=0.0
+            )
+
+            comentario_formal = resposta_formal.choices[0].text.strip()
+            self.comentarios_formais.append(comentario_formal)
+
+        texto_formal = "\n".join(self.comentarios_formais)
+        self.caixa_comentarios_formais.setPlainText(texto_formal)
+
+        QMessageBox.information(self, "Texto Formal", "O texto foi convertido para linguagem formal!")
+
+    def baixar_word(self):
+        comentarios_formais = self.caixa_comentarios_formais.toPlainText()
+
+        document = Document()
+        document.add_paragraph(comentarios_formais)
+
+        document.save("comentarios_formais.docx")
+
+        QMessageBox.information(self, "Download Concluído", "Os comentários formais foram baixados em formato Word!")
+
+    def substituir_girias(self, texto):
+        palavras = texto.split()
+        palavras_formais = []
+
+        for palavra in palavras:
+            palavra_formal = palavra
+
+            if palavra.lower() in self.girias:
+                palavra_formal = self.girias[palavra.lower()]
+            else:
+                nova_giria = self.buscar_giria_na_internet(palavra)
+                if nova_giria:
+                    self.girias[palavra.lower()] = nova_giria
+                    palavra_formal = nova_giria
+
+            palavras_formais.append(palavra_formal)
+
+        texto_formal = ' '.join(palavras_formais)
+
+        return texto_formal
+
+    def buscar_giria_na_internet(self, giria):
+        # Realizar a busca na internet
+        pesquisa = f"Significado da gíria {giria}"
+        url = f"https://www.google.com/search?q={pesquisa}"
+        resposta = requests.get(url)
+        soup = BeautifulSoup(resposta.text, "html.parser")
+        significado = soup.find("div", class_="BNeawe iBp4i AP7Wnd").text
+
+        return significado
 
 if __name__ == "__main__":
     import sys
+
     app = QApplication(sys.argv)
-    window = RelatorioApp()
-    window.show()
+
+    janela = RelatorioApp()
+    janela.show()
+
     sys.exit(app.exec_())
